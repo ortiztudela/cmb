@@ -228,7 +228,7 @@ ggplot(agent, aes(x = t))+
   ylab("")+
   #geom_text(data = data.frame(br =r), aes(x = br, label = br, y = 7.75),
     #        size = 4, col = 'grey30') +
-  scale_x_continuous(breaks = seq(1:seq(1:nTrials)),
+  scale_x_continuous(breaks = seq(1:nTrials),
    sec.axis = sec_axis(name = "r",~. ,breaks = agent$t, labels =agent$r))+
     scale_color_manual(
       name = "",
