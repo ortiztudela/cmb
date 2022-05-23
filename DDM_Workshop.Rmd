@@ -1,0 +1,828 @@
+---
+title: "DDM Workshop"
+author: "Luc Vermeylen"
+date: "`r format(Sys.time(), '%B %e, %Y')`"
+fontsize: 24pt
+output:
+  html_notebook:
+    code_folding: hide
+    toc: yes
+    toc_float: true
+    toc_collapsed: false
+    number_sections: true
+    toc_depth: 3
+    theme: lumen
+---
+
+```{r, warning=FALSE, results='hide', message=FALSE}
+library(tidyverse)
+library(cowplot)
+library(rtdists)
+library(Rcpp)
+library(RcppZiggurat)
+library(DEoptim)
+theme_set(theme_classic())
+```
+
+# Introduction to Sequential Sampling Models
+
+## Data Exploration
+
+```{r}
+rr98 %>%
+  
+  print
+unique(rr98$id)
+```
+
+
+```{r}
+# data from rtdists package
+rr98 %>% 
+  filter(rt < 3) %>% 
+  mutate(accuracy = ifelse(correct == TRUE, 1, -1)) %>% 
+  mutate(rt = rt*accuracy) %>% 
+  ggplot(aes(x=rt, color = instruction)) +
+  geom_density()
+```
+
+
+```{r}
+data <- read.csv("data/data_OHora_2017.csv") %>%
+  select(Subj_idx, Coherence, RT_dec, Accuracy) %>%
+  rename(subject = Subj_idx,
+         coherence = Coherence,
+         accuracy = Accuracy,
+         rt = RT_dec) %>% 
+  filter(subject == 172) %>% print
+```
+
+```{r}
+data %>%
+  group_by(coherence) %>%
+  summarise(accuracy = mean(accuracy))
+```
+
+
+# Distributional Analyses
+
+## RT Distributions
+
+```{r}
+data %>%
+  filter(accuracy == 1) %>%
+  filter(rt < 10) %>%
+  ggplot(aes(x=rt)) +
+  geom_density()
+```
+
+## Quantiles
+
+```{r}
+qs <- quantile(data$rt, probs = c(0,.2,.4,.6,.8,1))
+data %>%
+  filter(accuracy == 1) %>%
+  filter(rt < 10) %>%
+  ggplot(aes(x=rt)) +
+  geom_density() +
+  geom_vline(xintercept = qs, linetype = "dashed")
+```
+
+
+## Conditional Accuracy Function
+
+```{r}
+data$quantile <- as.numeric(cut(data$rt, 
+                     breaks = quantile(data$rt, 
+                                       probs = c(0,.2,.4,.6,.8,1), 
+                                       na.rm = TRUE,
+                                       type = 2),
+                     include.lowest = TRUE))
+data %>% 
+  group_by(quantile) %>%
+  summarise(rt = mean(rt),
+            accuracy = mean(accuracy)) %>%
+  ggplot(aes(x=rt,y=accuracy)) +
+  geom_point() + 
+  geom_line()
+```
+
+
+## Delta Function
+
+not possible without a delta right? leave out and to distribution fitting instead?
+
+# Simulating the DDM
+
+We can also include choice in the modeling, so that we simultaneously model RT and accuracy or choice.
+
+## Noisy Evidence Accumulation
+
+### Basic Parameters
+
+```{r}
+# The main parameters
+v <- 2 # the systematic component in the noise, i.e., the drift rate
+a <- 1 # height of the upper boundary, -a will be the height of the lower boundary
+z <- 0 # the starting point, which we set to be exactly in the middle of the two boundaries
+```
+
+### Constants
+
+```{r}
+# The main parameters
+v <- 2 # the systematic component in the noise, i.e., the drift rate
+a <- 1 # height of the upper boundary, -a will be the height of the lower boundary
+z <- 0 # the starting point, which we set to be exactly in the middle of the two boundaries
+
+# Other necessary variables
+s <- 1 # the diffusion constant, or the noise level. Often set to either 1 or .1 (scales drift rate and boundary accordingly)
+dt <- .001 # the size of the time step we make on each accumulation of noise, 1 ms
+tmax <- .500 # the maximum amount of time will accumulate evidence for
+tstep <- 1 # you will also need count time steps rather than absolute time (to be able to use this as an index for the evidence vector)
+tmax_step <- tmax/dt # and also convert the max time in steps rather than absolute time
+x <- rep(NA, tmax_step) # an empty vector to store the evidence at each time step
+x[1] <- z # set the initial evidence to the starting point (zero in this case)
+```
+ 
+### Accumulating Evidence
+
+The process of the DDM can be described by the following stochastic differential equation:
+
+dXt = v(Xt,t)dt + s(Xt,t)*dWt (integration of systematic/signal component + noise component over time)
+
+or: 
+
+Xt+1 = x(t) + v*dt + s*sqrt(dt)*N(0,1)
+
+- x(t) is the state of the decision-formation process, known as the decision variable, at time t
+- v is the rate of accumulation of sensory evidence, known as the drift rate
+- Δt is the step size of the process; 
+- s is the standard deviation of the moment-to-moment (Brownian) noise of the decision-formation process
+- N(0,1) refers to a random sample from the standard normal distribution. 
+
+- A response is made when x(t+Δt)≥aupper or x(t+Δt)≤alower. 
+- Whether a response is correct or incorrect is determined from the boundary that was crossed and the valence of the drift rate (i.e.,  implies the upper boundary corresponds to the correct response, implies the lower boundary corresponds to the correct response). 
+
+Exercise: Simulate one trial of the noisy evidence accumulation and plot this evidence or decision variable together with the height of the upper and lower boundary. If that works, try changing the main parameters to see how they influence the noisy accumulation process.
+
+```{r}
+# The main parameters
+v <- 2 # the systematic component in the noise, i.e., the drift rate
+a <- 1 # height of the upper boundary, -a will be the height of the lower boundary
+z <- 0 # the starting point, which we set to be exactly in the middle of the two boundaries
+
+# Other necessary variables
+s <- 1 # the diffusion constant, or the noise level. Often set to either 1 or .1 (scales drift rate and boundary accordingly)
+dt <- .001 # the size of the time step we make on each accumulation of noise, 1 ms
+tmax <- .500 # the maximum amount of time will accumulate evidence for
+tstep <- 1 # you will also need count time steps rather than absolute time (to be able to use this as an index for the evidence vector)
+tmax_step <- tmax/dt # and also convert the max time in steps rather than absolute time
+x <- rep(NA, tmax_step) # an empty vector to store the evidence at each time step
+x[1] <- z # set the initial evidence to the starting point (zero in this case)
+
+# Write a while loop that accumulates noisy evidence until the maximum amount of time specified above
+# Basically, you will need to turn the stochastic differential equation from above into code
+while (tstep < tmax_step){
+  x[tstep+1] <- x[tstep] + v*dt + s*sqrt(dt)*rnorm(1, 0, 1)
+  tstep <- tstep + 1
+}
+```
+
+### Plotting the Decision Variable
+
+```{r}
+# The main parameters
+v <- 2 # the systematic component in the noise, i.e., the drift rate
+a <- 1 # height of the upper boundary, -a will be the height of the lower boundary
+z <- 0 # the starting point, which we set to be exactly in the middle of the two boundaries
+
+# Other necessary variables
+s <- 1 # the diffusion constant, or the noise level. Often set to either 1 or .1 (scales drift rate and boundary accordingly)
+dt <- .001 # the size of the time step we make on each accumulation of noise, 1 ms
+tmax <- .500 # the maximum amount of time will accumulate evidence for
+tstep <- 1 # you will also need count time steps rather than absolute time (to be able to use this as an index for the evidence vector)
+tmax_step <- tmax/dt # and also convert the max time in steps rather than absolute time
+x <- rep(NA, tmax_step) # an empty vector to store the evidence at each time step
+x[1] <- z # set the initial evidence to the starting point (zero in this case)
+
+# Write a while loop that accumulates noisy evidence until the maximum amount of time specified above
+# Basically, you will need to turn the stochastic differential equation from above into code
+while (tstep < tmax_step){
+  x[tstep+1] <- x[tstep] + v*dt + s*sqrt(dt)*rnorm(1, 0, 1)
+  tstep <- tstep + 1
+}
+# Plot the resulting trajectory of the evidence (i.e., the decision variable)
+plot(x, ylim = c(-a,a), type = 'l', xlab = 'Time', ylab = 'Evidence')
+abline(h=a) # draw the upper boundary
+abline(h=z, lty = 'dashed') # draw the starting point
+abline(h=-a) # draw the lower boundary
+```
+
+### Absorbing Boundaries
+
+In the previous example, we accumulated until our maximum time was reached. However, in the DDM, evidence accumulation is terminated (and a response is given) when the boundary is hit. This time is also called the "first passage time".
+
+Excercise: Terminate the accumulation of evidence when the boundary is hit, and record which boundary was hit (code a hit of the upper boundary as a 1, and a hit of the lower boundary is a 0), and at what time this occured. 
+
+```{r}
+# The main parameters
+v <- 2 # the systematic component in the noise, i.e., the drift rate
+a <- 1 # height of the upper boundary, -a will be the height of the lower boundary
+z <- 0 # the starting point, which we set to be exactly in the middle of the two boundaries
+
+# Other necessary variables
+s <- 1 # the diffusion constant, or the noise level. Often set to either 1 or .1 (scales drift rate and boundary accordingly)
+dt <- .001 # the size of the time step we make on each accumulation of noise, 1 ms
+tmax <- .500 # the maximum amount of time will accumulate evidence for
+tstep <- 1 # you will also need count time steps rather than absolute time (to be able to use this as an index for the evidence vector)
+tmax_step <- tmax/dt # and also convert the max time in steps rather than absolute time
+x <- rep(NA, tmax_step) # an empty vector to store the evidence at each time step
+x[1] <- z # set the initial evidence to the starting point (zero in this case)
+
+# Write a while loop that accumulates noisy evidence until the maximum amount of time specified above
+# Basically, you will need to turn the stochastic differential equation from above into code
+while (tstep < tmax_step){
+  x[tstep+1] <- x[tstep] + v*dt + s*sqrt(dt)*rnorm(1, 0, 1)
+  if (x[tstep] > a){
+    resp = 1
+    break
+  } else if (x[tstep] < -a) {
+    resp = 0
+    break
+  }
+  tstep <- tstep + 1
+}
+rt <- tstep*dt
+# Plot the resulting trajectory of the evidence (i.e., the decision variable)
+plot(x, ylim = c(-a,a), type = 'l', xlab = 'Time', ylab = 'Evidence')
+abline(h=a) # draw the upper boundary
+abline(h=z, lty = 'dashed') # draw the starting point
+abline(h=-a) # draw the lower boundary
+```
+
+### Non-Decision Time
+
+Excercise: I added Ter (Non-Decision Time, which is in seconds) to the list of main parameters. Your goal is to add it properly to the code. Typically, the Ter is simply added to the resulting decision time.
+
+```{r}
+# The main parameters
+v <- 2 # the systematic component in the noise, i.e., the drift rate
+a <- 1 # height of the upper boundary, -a will be the height of the lower boundary
+z <- 0 # the starting point, which we set to be exactly in the middle of the two boundaries
+ter <- .3 # the non-decision time
+
+# Other necessary variables
+s <- 1 # the diffusion constant, or the noise level. Often set to either 1 or .1 (scales drift rate and boundary accordingly)
+dt <- .001 # the size of the time step we make on each accumulation of noise, 1 ms
+tmax <- .500 # the maximum amount of time will accumulate evidence for
+tstep <- 1 # you will also need count time steps rather than absolute time (to be able to use this as an index for the evidence vector)
+tmax_step <- tmax/dt # and also convert the max time in steps rather than absolute time
+x <- rep(NA, tmax_step) # an empty vector to store the evidence at each time step
+x[1] <- z # set the initial evidence to the starting point (zero in this case)
+
+# Write a while loop that accumulates noisy evidence until the maximum amount of time specified above
+# Basically, you will need to turn the stochastic differential equation from above into code
+while (tstep < tmax_step){
+  x[tstep+1] <- x[tstep] + v*dt + s*sqrt(dt)*rnorm(1, 0, 1)
+  if (x[tstep] > a){
+    resp = 1
+    break
+  } else if (x[tstep] < -a) {
+    resp = 0
+    break
+  }
+  tstep <- tstep + 1
+}
+rt <- tstep*dt + ter
+# Plot the resulting trajectory of the evidence (i.e., the decision variable)
+plot(x, ylim = c(-a,a), type = 'l', xlab = 'Time', ylab = 'Evidence')
+abline(h=a) # draw the upper boundary
+abline(h=z, lty = 'dashed') # draw the starting point
+abline(h=-a) # draw the lower boundary
+```
+
+## The Standard DDM
+
+We now have all the components that make up the standard Drift Diffusion Model with the parameters:
+
+- Drift Rate (v): the signal in the noise
+- Boundary (a): the speed-accuracy tradeoff or cautiousness
+- Starting Point (z): the bias towards one of the two boundaries.
+- Non-Decision Time (ter): all other things that need to happen before/after the decision.
+
+Next, we will start simulating multiple trials, and turn the model into a function so we can finally get a look at the predictions of the model: the first passage distributions, which show a remarkable similarity to human RT distributions.
+
+### Simulating Multiple Trials
+
+The first step towards the first passage distributions is to simulate multiple trials of the diffusion process.
+
+Exercise: Simulate 10 trials of noisy evidence accumulation (tip: use a for loop) and record the RT and response for each trial in a matrix (tip: declare this up front). You don't have to record the traces of evidence accumulation anymore (tip: be sure to reset the evidence vector each trial!). At the end, convert the matrix to a dataframe with the columns named "rt" and "resp". Also increase the maximum time so that most decision end up at either one of the two boundaries.
+
+```{r}
+# Set up the main parameters
+v <- 2 # the systematic compentent in the noise, i.e., the drift rate
+a <- 1 # height of the upper boundary, -a will be the height of the lower boundary
+z <- 0 # the starting point, which we set to be exactly in the middle of the two boundaries
+ter <- .3 # non-decisison time.
+
+# Other necessary variables
+s <- 1 # the diffusion constant, or the noise level. Often set to either 1 or .1 (scales drift rate and boundary accordingly)
+dt <- .001 # the size of the time step we make on each accumulation of noise, 1 ms
+tmax <- 5 # the maximum amount of time will accumulate evidence for
+tmax_step <- tmax/dt # and also the max time in steps rather than absolute time
+
+ntrials <- 10
+rts <- rep(NA, ntrials) 
+resps <- rep(NA, ntrials)
+
+for (trial in 1:ntrials) {
+  
+  tstep <- 1 # you will need count time steps rather than absolute time (to be able to use this as an index for the evidence vector)
+  x <- rep(NA, tmax_step) # a vector to store the evidence at each time step in
+  x[1] <- z # set the initial evidence to the starting point (zero in this case)
+
+  while (tstep < tmax_step){
+    x[tstep+1] <- x[tstep] + v*dt + s*sqrt(dt)*rnorm(1, 0, 1)
+    if (x[tstep] > a) {
+      resps[trial] <- 1
+      break
+    } else if (x[tstep] < -a) {
+      resps[trial] <- 0
+      break
+    }
+    tstep <- tstep + 1
+  }
+  rts[trial] <- tstep*dt + ter
+}
+data <- data.frame(rt = rts, resp = resps)
+print(data)
+```
+
+### Making a Simulation Function
+
+When fitting the DDM to real data, we will have to simulate a lot of data. For this reason, it will be handy if we have a function that as an input has the DDM parameters and as output the responses and reaction times of the simulated evidence accumulation process.
+
+Exercise: Turn the previous code into a function which returns the dataframe with RTs and responses
+
+```{r}
+simulate_DDM <- function(v = 2, a = 1, z = 0, ter = .3,
+                        s = 1, dt = .001, tmax = 5, ntrials = 10){
+  
+  # Initialize variables
+  tmax_step <- tmax/dt # and also the max time in steps rather than absolute time
+  rts <- rep(NA, ntrials) 
+  resps <- rep(NA, ntrials)
+  
+    # Trial loop
+    for (trial in 1:ntrials) {
+  
+      tstep <- 1 # you will need count time steps rather than absolute time (to be able to use this as an index for the evidence vector)
+      x <- rep(NA, tmax_step) # a vector to store the evidence at each time step in
+      x[1] <- z # set the initial evidence to the starting point (zero in this case)
+    
+      while (tstep < tmax_step){
+        x[tstep+1] <- x[tstep] + v*dt + s*sqrt(dt)*rnorm(1, 0, 1)
+        if (x[tstep] > a) {
+          resps[trial] <- 1
+          break
+        } else if (x[tstep] < -a) {
+          resps[trial] <- 0
+          break
+        }
+        tstep <- tstep + 1
+      }
+      rts[trial] <- tstep*dt + ter
+    }
+  data <- data.frame(rt = rts, resp = resps)
+  return(data)
+}
+```
+
+```{r}
+# now run the function to see if it works. Change the parameters and see if they function as expected.
+simulate_DDM()
+```
+
+## The Full DDM
+
+Before plotting the resulting distributions, let's first complete the DDM model to the "full" DDM that is more flexible to fit data.
+
+### Variability in Drift Rate
+
+```{r}
+simulate_DDM <- function(v = 2, a = 1, z = 0, ter = .3,
+                         sv = 0,
+                         s = 1, dt = .001, tmax = 5, ntrials = 10){
+  
+  # Initialize variables
+  tmax_step <- tmax/dt # and also the max time in steps rather than absolute time
+  rts <- rep(NA, ntrials) 
+  resps <- rep(NA, ntrials)
+  
+    # Trial loop
+    for (trial in 1:ntrials) {
+      
+      trial_v <- rnorm(1, v, sv)
+  
+      tstep <- 1 # you will need count time steps rather than absolute time (to be able to use this as an index for the evidence vector)
+      x <- rep(NA, tmax_step) # a vector to store the evidence at each time step in
+      x[1] <- z # set the initial evidence to the starting point (zero in this case)
+      
+      while (tstep < tmax_step){
+        x[tstep+1] <- x[tstep] + trial_v*dt + s*sqrt(dt)*rnorm(1, 0, 1)
+        if (x[tstep] > a) {
+          resps[trial] <- 1
+          break
+        } else if (x[tstep] < -a) {
+          resps[trial] <- 0
+          break
+        }
+        tstep <- tstep + 1
+      }
+      rts[trial] <- tstep*dt + ter
+    }
+  data <- data.frame(rt = rts, resp = resps)
+  return(data)
+}
+```
+
+### Variability in Non-Decision Time
+
+```{r}
+simulate_DDM <- function(v = 2, a = 1, z = 0, ter = .3,
+                         sv = 0, ster = 0,
+                         s = 1, dt = .001, tmax = 5, ntrials = 10){
+  
+  # Initialize variables
+  tmax_step <- tmax/dt # and also the max time in steps rather than absolute time
+  rts <- rep(NA, ntrials) 
+  resps <- rep(NA, ntrials)
+  
+    # Trial loop
+    for (trial in 1:ntrials) {
+      
+      trial_v <- rnorm(1, v, sv)
+      trial_ter <- runif(1, ter - ster/2, ter + ster/2)
+  
+      tstep <- 1 # you will need count time steps rather than absolute time (to be able to use this as an index for the evidence vector)
+      x <- rep(NA, tmax_step) # a vector to store the evidence at each time step in
+      x[1] <- z # set the initial evidence to the starting point (zero in this case)
+    
+      while (tstep < tmax_step){
+        x[tstep+1] <- x[tstep] + trial_v*dt + s*sqrt(dt)*rnorm(1, 0, 1)
+        if (x[tstep] > a) {
+          resps[trial] <- 1
+          break
+        } else if (x[tstep] < -a) {
+          resps[trial] <- 0
+          break
+        }
+        tstep <- tstep + 1
+      }
+      rts[trial] <- tstep*dt + trial_ter
+    }
+  data <- data.frame(rt = rts, resp = resps)
+  return(data)
+}
+```
+
+### Variability in Starting Point
+
+```{r}
+simulate_DDM <- function(v = 2, a = 1, z = 0, ter = .3,
+                         sv = 0, ster = 0, sz = 0,
+                         s = 1, dt = .001, tmax = 5, ntrials = 10){
+  
+  # Initialize variables
+  tmax_step <- tmax/dt # and also the max time in steps rather than absolute time
+  rts <- rep(NA, ntrials) 
+  resps <- rep(NA, ntrials)
+  
+    # Trial loop
+    for (trial in 1:ntrials) {
+      
+      trial_v <- rnorm(1, v, sv)
+      trial_ter <- runif(1, ter - ster/2, ter + ster/2)
+      trial_z <- runif(1, z - sz/2, z + sz/2)
+  
+      tstep <- 1 # you will need count time steps rather than absolute time (to be able to use this as an index for the evidence vector)
+      x <- rep(NA, tmax_step) # a vector to store the evidence at each time step in
+      x[1] <- trial_z # set the initial evidence to the starting point (zero in this case)
+    
+      while (tstep < tmax_step){
+        x[tstep+1] <- x[tstep] + trial_v*dt + s*sqrt(dt)*rnorm(1, 0, 1)
+        if (x[tstep] >= a) {
+          resps[trial] <- 1
+          break
+        } else if (x[tstep] <= -a) {
+          resps[trial] <- 0
+          break
+        }
+        tstep <- tstep + 1
+      }
+      rts[trial] <- tstep*dt + trial_ter
+    }
+  data <- data.frame(rt = rts, resp = resps)
+  return(data)
+}
+```
+
+## Increasing Speed of Computation
+
+We will translate the former function to C++ using the Rcpp library to speed up simulations for use with optimization algorithms.
+
+```{Rcpp}
+// [[Rcpp::depends(RcppZiggurat)]]
+#include <Rcpp.h>
+#include <Ziggurat.h>
+using namespace Rcpp;
+static Ziggurat::Ziggurat::Ziggurat zigg;
+
+// Rcpp function to simulate predictions from the seven parameter drift diffusion model (v, a, ter, zr, sv, st, sz)
+// [[Rcpp::export]]
+DataFrame DDM(double v=2, double a=1, double z=0, double ter=0.3, 
+                  double sv=0, double ster=0, double sz=0,
+                  double s=1, double dt=.001, double tmax=20, int ntrials=5000) {
+  
+  // Initialize variables
+  int tmax_step = tmax/dt;
+  NumericVector rts(ntrials);
+  NumericVector resps(ntrials);
+  
+  // Trial loop
+  for (int i = 0; i < ntrials; i++) {
+    
+    double tstep = 0;
+    double resp = R_NaN;
+    double v_i = v + zigg.norm()*sv;
+    double ter_i = ter + R::runif(-ster/2, ster/2);
+    double evidence = z + R::runif(-sz/2, sz/2);
+    
+    // Evidence accumulation loop
+    while (tstep < tmax_step){
+      evidence = evidence + v_i*dt + s*sqrt(dt)*zigg.norm();
+      if (evidence >= a){
+        resp = 1;
+        break;
+      } else if (evidence <= -a) {
+        resp = 0;
+        break;
+      }
+      tstep = tstep + 1;
+    }
+    rts(i) = (tstep*dt + ter_i);
+    resps(i) = resp;
+  }
+  DataFrame df = DataFrame::create( Named("rt") = rts, 
+                                    Named("resp") = resps);
+  return(df);
+}
+```
+
+```{r}
+# The speedup using C++ can be very impressive, and is absolutely necessary for optimization
+system.time(replicate(3, DDM(ntrials=5000)))
+system.time(replicate(3, simulate_DDM(ntrials=5000)))
+```
+
+## First Passage Distributions
+
+It is exactly this noisy process of evidence accumulation that gives us these skewed distributions just like in real human data (first passage time distribution, fptd). 
+
+Exercise: Simulate data from the DDM, and plot the resulting RT distributions. Tip: A smooth distribution can be plotted by first computing a kernel density function before plotting (plot(density(x)))) and to plot both correct and error responses you can multiple the errors by -1 so they show up in the same distribution.
+
+```{r}
+fptd_data <- DDM(v = .5, ntrials = 5000)
+fptd_data$resp <- ifelse(fptd_data$resp == 0, -1, fptd_data$resp)
+fptd_data <- na.omit(fptd_data)
+fptd_data$rt <- fptd_data$rt * fptd_data$resp
+plot(density(fptd_data$rt, na.rm = T), main = "")
+```
+
+Let's make a function so we can easily plot in the future. Start by making a function that flips the signs of the errors (This will also be useful later on when fitting the data).
+
+```{r}
+flip_errors <- function(data){
+  data$resp <- ifelse(data$resp == 0, -1, data$resp)
+  data$rt <- data$rt * data$resp
+  data <- na.omit(data)
+  return(data)
+}
+plot_fptd <- function(data){
+  # data should have a "rt" (in seconds) and a "resp" column (that is coded as 0/1)
+  data <- flip_errors(data)
+  plot(density(data$rt, na.rm=T), main = "")
+}
+fptd_data <- DDM(v = .5, n = 5000)
+plot_fptd(data = fptd_data)
+```
+
+## Visualizing the Effect of Parameters
+
+https://lucvermeylen.shinyapps.io/DDMs_shiny/
+
+# Fitting the DDM
+
+## Objective Functions
+
+### Kolmogorov-Smirnov
+
+```{r}
+loss_ks <- function(parms, observed_data, ntrials = 5000){
+  observed_data <- flip_errors(observed_data)
+  predicted_data <- DDM(v = parms[1], a = parms[2], ter = parms[3], ntrials=ntrials)
+  predicted_data <- flip_errors(predicted_data)
+  ks <- suppressWarnings(ks.test(observed_data$rt, predicted_data$rt))
+  return(ks$statistic)
+}
+loss_ks(c(0, 1, .3), DDM())
+```
+
+### Multinomial Likelihood
+
+also: quantile maximum likelihood (G square, cf. chi square)
+
+G square: sum( (O-E)^2 / O )
+
+The proportions for the observed (O) and expected (E) frequencies and summing over 2N[Olog(O/E)] for all conditions gives a single G2 (a log multinomial likelihood) value to be minimized (where N is the number of observations for the condition).
+
+We used the G-square multinomial likelihood goodness of fit statistic to allow likelihood ratio tests as well as AIC and BIC tests, which penalize goodness of fit to different degrees as a function of number of parameters. AIC = −G2+2k, where k, where k is the number of parameters, and BIC = −G2+kln(N), where N is the number of observations.
+
+
+```{r}
+# simulate observed and predicted data
+observed_data <- simulate_DDM(v = .5, a = 1.5, n = 1000)
+parms <- c(0,.3)
+```
+
+```{r}
+# next, we need the quantile values of the observed data for error and correct distributions
+observed_data <- na.omit(observed_data)
+correct_observed <- observed_data[observed_data$resp == 1,]$rt
+error_observed <- observed_data[observed_data$resp == 0,]$rt
+correct_quantiles <- quantile(correct_observed, probs = c(.1,.3,.5,.7,.9))
+error_quantiles <- quantile(error_observed, probs = c(.1,.3,.5,.7,.9))
+correct_obs_props <- c(.1,.2,.2,.2,.2,.1) * (length(correct_observed) / dim(observed_data)[1])
+error_obs_props <- c(.1,.2,.2,.2,.2,.1) * (length(error_observed) / dim(observed_data)[1])
+obs_props <- c(correct_obs_props,error_obs_props)
+obs_props
+# sanity check: should sum to one! 
+sum(obs_props)
+```
+
+```{r}
+# now we use the quantiles of the observed data, and apply them to the predicted data
+# to find the proportions of the predicted data given the quantiles of the observed data
+predicted_data <- simulate_DDM(v = parms[1], a = parms[2], n = 1000)
+predicted_data <- na.omit(predicted_data)
+correct_predicted <- predicted_data[predicted_data$resp == 1,]$rt
+error_predicted <- predicted_data[predicted_data$resp == 0,]$rt
+# get predicted proportions
+pred_props <- c(
+  # correct trials
+  sum(correct_predicted <= correct_quantiles[1]),
+  sum(correct_predicted >= correct_quantiles[1] & correct_predicted <= correct_quantiles[2]),
+  sum(correct_predicted >= correct_quantiles[2] & correct_predicted <= correct_quantiles[3]),
+  sum(correct_predicted >= correct_quantiles[3] & correct_predicted <= correct_quantiles[4]),
+  sum(correct_predicted >= correct_quantiles[4] & correct_predicted <= correct_quantiles[5]),
+  sum(correct_predicted > correct_quantiles[5]),
+  # error trials
+  sum(error_predicted <= error_quantiles[1]),
+  sum(error_predicted >= error_quantiles[1] & error_predicted <= error_quantiles[2]),
+  sum(error_predicted >= error_quantiles[2] & error_predicted <= error_quantiles[3]),
+  sum(error_predicted >= error_quantiles[3] & error_predicted <= error_quantiles[4]),
+  sum(error_predicted >= error_quantiles[4] & error_predicted <= error_quantiles[5]),
+  sum(error_predicted >= error_quantiles[5]) 
+) / dim(predicted_data)[1]
+pred_props
+# sanity check: should sum to 1!
+sum(pred_props)
+```
+
+```{r}
+k <- 3
+N <- dim(observed_data)[1]
+pred_props = pmax(pred_props,1e-10)
+gsquare <- 2 * N * sum(obs_props * log(obs_props/pred_props)) 
+aic <- -gsquare + 2*k # AIC = −G2+2k, where k, where k is the number of parameters
+bic <- -gsquare + log(N)*k # BIC: N is the number of observations.
+print(gsquare)
+print(aic)
+print(bic)
+```
+
+```{r}
+loss_gsquare <- function(parms, observed_data, ntrials = 500){
+  
+  # get the observed data and calculate the theoretical proportions between the quantiles
+  observed_data <- na.omit(observed_data)
+  correct_observed <- observed_data[observed_data$resp == 1,]$rt
+  error_observed <- observed_data[observed_data$resp == 0,]$rt
+  correct_quantiles <- quantile(correct_observed, probs = c(.1,.3,.5,.7,.9))
+  error_quantiles <- quantile(error_observed, probs = c(.1,.3,.5,.7,.9))
+  correct_obs_props <- c(.1,.2,.2,.2,.2,.1) * (length(correct_observed) / dim(observed_data)[1])
+  error_obs_props <- c(.1,.2,.2,.2,.2,.1) * (length(error_observed) / dim(observed_data)[1])
+  obs_props <- c(correct_obs_props,error_obs_props)
+  
+  # get predicted data for the current set of candidate parameters
+  predicted_data <- DDM(v = parms[1], a = parms[2], ter = parms[3], ntrials = ntrials)
+  predicted_data <- na.omit(predicted_data)
+  correct_predicted <- predicted_data[predicted_data$resp == 1,]$rt
+  error_predicted <- predicted_data[predicted_data$resp == 0,]$rt
+  
+  # get predicted proportions, given the observed quantile cut off points
+  pred_props <- c(
+    # correct trials
+    sum(correct_predicted <= correct_quantiles[1]),
+    sum(correct_predicted >= correct_quantiles[1] & correct_predicted <= correct_quantiles[2]),
+    sum(correct_predicted >= correct_quantiles[2] & correct_predicted <= correct_quantiles[3]),
+    sum(correct_predicted >= correct_quantiles[3] & correct_predicted <= correct_quantiles[4]),
+    sum(correct_predicted >= correct_quantiles[4] & correct_predicted <= correct_quantiles[5]),
+    sum(correct_predicted > correct_quantiles[5]),
+    # error trials
+    sum(error_predicted <= error_quantiles[1]),
+    sum(error_predicted >= error_quantiles[1] & error_predicted <= error_quantiles[2]),
+    sum(error_predicted >= error_quantiles[2] & error_predicted <= error_quantiles[3]),
+    sum(error_predicted >= error_quantiles[3] & error_predicted <= error_quantiles[4]),
+    sum(error_predicted >= error_quantiles[4] & error_predicted <= error_quantiles[5]),
+    sum(error_predicted >= error_quantiles[5]) 
+  ) / dim(predicted_data)[1]
+  
+  # quantify mismatch between observed and predicted proportions (X2, G2, AIC, BIC...)
+  N <- dim(observed_data)[1]
+  pred_props = pmax(pred_props,1e-10)
+  gsquare <- 2 * N * sum(obs_props * log(obs_props/pred_props)) 
+  return(gsquare)
+}
+```
+
+### Maximum Likelihood
+
+```{r}
+loss_loglik <- function(parms, observed_data){
+  # calculate the likelihood for each response
+  likelihoods <- ddiffusion(rt=observed_data$rt, response=observed_data$response,
+                            v=parms[1], 
+                            a=parms[2], 
+                            t0=parms[3],
+                            z=.5*parms[2],
+                            s=1)
+  
+  # take negative of the sum of the logged likelihoods (to be minimized)
+  if (any(likelihoods == 0)) return(1e6) # the density is set to 10e6, when the predicted density is smaller than this value. 
+  return(-sum(log(likelihoods)))
+}
+```
+
+```{r}
+obs_data <- rdiffusion(v = 2.32, a = 1.243, t0 = .254, n = 1000)
+obs_data
+loglik(c(1,1,.3), obs_data)
+```
+
+
+## Optimization Algorithms
+
+### Differential Evolution
+
+```{r}
+# KS
+obs_data <- DDM(v = 2.32, a = 1.243, ter = .254, n = 1000)
+DEoptim(loss_ks, lower = c(0,0,0), upper = c(5,2,.5), observed_data = obs_data, ntrials = 100000,
+        control=list(itermax=25,trace=5))
+```
+
+```{r}
+# G2
+obs_data <- DDM(v = 2.32, a = 1.243, ter = .254, n = 1000)
+DEoptim(loss_gsquare, lower = c(0,0,0), upper = c(5,2,.5), observed_data = obs_data, ntrials = 5000,
+        control=list(itermax=50,trace=5))
+```
+
+```{r}
+# LL
+obs_data <- rdiffusion(v = 2.32, a = 1.243, t0 = .254, n = 200)
+DEoptim(loss_loglik, lower = c(0,0,0), upper = c(5, 2,.5), observed_data = obs_data,
+        control=list(itermax=50,trace=5))
+```
+
+
+## Parameter Recovery
+
+Can we trust the parameter values we get from our optimization routines? How many trials do need to achieve good and reliable parameter estimates?
+
+## Fit Assessment
+
+Visualizing predicted and observed RT distributions. How well do the best candidate parameters and its underlying model approximate the actual data?
+
+## Fitting Multiple Conditions
+
+# Hierarchical Fitting
+
+See example Python scripts on the HDDM package (Wiecki et al., 2013). 
+
+Practical guide. 
+
+Interpretation of results.
+
