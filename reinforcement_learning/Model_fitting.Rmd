@@ -1,0 +1,191 @@
+---
+title: "Model fitting"
+author: "Francesco Pupillo"
+date: "`r format(Sys.time(), '%B %e, %Y')`"
+fontsize: 24pt
+output:
+  html_notebook:
+    code_folding: hide
+    toc: yes
+    toc_float: true
+    toc_collapsed: false
+    number_sections: true
+    toc_depth: 3
+    theme: lumen
+    editor_options: 
+  chunk_output_type: inline
+---
+
+# Model Fitting
+
+
+```{r}
+library("dplyr")
+library(ggplot2)
+library(gridExtra) # for plotting
+library(ggpubr)
+
+source("simulation_functions/simulate_RW_instr.R")
+source("likelihood_functions/likelihood_RW_instr.R")
+source("helper_functions/fit_RW_instr.R")
+source("helper_functions/softmax.R")
+source("helper_functions/chooseBinomial.R")
+source("helper_functions/BICcompute.R")
+
+```
+
+
+## Parameter recovery
+
+```{r, parameter recovery}
+# Define the parameters
+sims<-30
+#n_param<-10# number of simulations
+alpha_bound<-c(0,1) # Boundary of the alpha
+beta_bound<-c(0, 40) # Boundaries of the beta
+
+# generate a number of randomparameters
+alpha_seq<-seq(alpha_bound[1], alpha_bound[2], length.out = sims)
+beta_seq<-seq(beta_bound[1], beta_bound[2], length.out = sims)
+# randomly shuffle them
+alpha_seq<-sample(alpha_seq)
+beta_seq<-sample(beta_seq)
+
+# create a structure for the dataframe
+nTrials<-50
+p_red<-0.75
+
+df<-data.frame("t" = 1:nTrials)
+df$win <- sample(c("red", "yellow"), size = nTrials, prob = c(p_red, 1-p_red),
+                        replace =T)
+
+
+# create an empty dataframe
+sim_all<-as.data.frame(matrix(NA, nrow = sims, ncol = 4))
+
+# loop through the simulations
+for(s in 1:sims){
+  
+  # simulate
+  simulated<-simulate_RW_instr(df, alpha = alpha_seq[s], beta = beta_seq[s])
+  
+  # reduce it
+  simulated<-simulated %>% select(c("t","choice_slot" ,"r" ))
+  
+  # fit the model
+  fit<-fit_RW_instr(simulated, alphaBound = alpha_bound, betaBound = beta_bound)
+  
+  fit_alpha<-fit$alpha_beta[1]
+  fit_beta<-fit$alpha_beta[2]
+
+  sim_all[s, ]<-c(alpha_seq[s], fit_alpha, beta_seq[s], fit_beta)
+  
+}
+
+# assign names
+names(sim_all)<-c("sim_alpha", "fit_alpha", "sim_beta", "fit_beta")
+
+plotalpha<-ggplot(sim_all, aes(x=sim_alpha, y=fit_alpha)) + 
+  geom_point()+
+  geom_smooth(method=lm)+
+  theme_bw()+
+  stat_cor(method="pearson")+
+  xlim(0,1)+
+  ylim(0,1)+
+  #stat_cor(method = "pearson", label.x = 3, label.y = 30)+
+  ggtitle("Alpha parameter")
+
+plotbeta<-ggplot(sim_all, aes(x=sim_beta, y=fit_beta)) + 
+  geom_point()+
+  geom_smooth(method=lm)+
+  theme_bw()+
+  stat_cor(method="pearson")+
+  xlim(0,40)+
+  ylim(0,40)+
+  #stat_cor(method = "pearson", label.x = 3, label.y = 30)+
+  ggtitle("Beta parameter")
+
+g<-grid.arrange(plotalpha, plotbeta, ncol=2)
+
+
+```
+### rerun the parameter recovery by limiting the beta to 10
+```{r, parameter recovery}
+# Define the parameters
+sims<-30
+#n_param<-10# number of simulations
+alpha_bound<-c(0,1) # Boundary of the alpha
+beta_bound<-c(0, 5) # Boundaries of the beta
+
+# generate a number of randomparameters
+alpha_seq<-seq(alpha_bound[1], alpha_bound[2], length.out = sims)
+beta_seq<-seq(beta_bound[1], beta_bound[2], length.out = sims)
+# randomly shuffle them
+alpha_seq<-sample(alpha_seq)
+beta_seq<-sample(beta_seq)
+
+# create a structure for the dataframe
+nTrials<-50
+p_red<-0.85
+
+df<-data.frame("t" = 1:nTrials)
+df$win <- sample(c("red", "yellow"), size = nTrials, prob = c(p_red, 1-p_red),
+                        replace =T)
+
+
+# create an empty dataframe
+sim_all<-as.data.frame(matrix(NA, nrow = sims, ncol = 4))
+
+# loop through the simulations
+for(s in 1:sims){
+  
+  # simulate
+  simulated<-simulate_RW_instr(df, alpha = alpha_seq[s], beta = beta_seq[s])
+  
+  # reduce it
+  simulated<-simulated %>% select(c("t","choice_slot" ,"r" ))
+  
+  # fit the model
+  fit<-fit_RW_instr(simulated, alphaBound = alpha_bound, betaBound = beta_bound)
+  
+  fit_alpha<-fit$alpha_beta[1]
+  fit_beta<-fit$alpha_beta[2]
+
+  sim_all[s, ]<-c(alpha_seq[s], fit_alpha, beta_seq[s], fit_beta)
+  
+}
+
+# assign names
+names(sim_all)<-c("sim_alpha", "fit_alpha", "sim_beta", "fit_beta")
+
+plotalpha<-ggplot(sim_all, aes(x=sim_alpha, y=fit_alpha)) + 
+  geom_point()+
+  geom_smooth(method=lm)+
+  theme_bw()+
+  stat_cor(method="pearson")+
+  xlim(0,1)+
+  ylim(0,1)+
+  #stat_cor(method = "pearson", label.x = 3, label.y = 30)+
+  ggtitle("Alpha parameter")
+
+plotbeta<-ggplot(sim_all, aes(x=sim_beta, y=fit_beta)) + 
+  geom_point()+
+  geom_smooth(method=lm)+
+  theme_bw()+
+  stat_cor(method="pearson")+
+  xlim(0,beta_bound[2])+
+  ylim(0,beta_bound[2])+
+  #stat_cor(method = "pearson", label.x = 3, label.y = 30)+
+  ggtitle("Beta parameter")
+
+g<-grid.arrange(plotalpha, plotbeta, ncol=2)
+
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+

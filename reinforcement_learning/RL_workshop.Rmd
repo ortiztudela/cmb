@@ -200,7 +200,7 @@ ggplot(all_soft, aes(x = Qred, y = pRed, color = beta, group = beta))+
 ```{r echo=TRUE}
 set.seed(12345)
 source("helper_functions/chooseBinomial.R")
-source("helper_functions/simulate_RW_instr.R")
+source("simulation_functions/simulate_RW_instr.R")
 
 # define parameters
 nTrials<-20
