@@ -28,7 +28,7 @@ likelihood_RW_instr<-function( df, alpha, beta, out){
   Q<-rep(0.5, 2)
   
   # loop through the trials
-  for(t in 1:nrow(df)-1){
+  for(t in 1:(nrow(df)-1)){
     
     # get the expected values
    # Q = as.numeric(df[t, c("Qred", "Qyellow")])

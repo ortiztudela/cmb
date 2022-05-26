@@ -25,14 +25,11 @@ simulate_WSLS<-function ( df, alpha, beta){
   # initialize the reward
   df$r<-NA
   
-  # Initialize prediction error
-  df$Delta<-NA
-  
   # create an empty rowa at the end
   df[nrow(df)+1, ]<-NA
   
   # loop over trials
-  for (t in 1: nrow(df)){
+  for (t in 1: (nrow(df)-1)){
 
     # get the expected values
     Q = df[t, c("Qred", "Qyellow")]
@@ -65,7 +62,7 @@ simulate_WSLS<-function ( df, alpha, beta){
     
   }
   
-  return(Data)
+  return(df)
   
   }
 
