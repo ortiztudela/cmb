@@ -1,11 +1,14 @@
-simulate_RW_instr<-function( df, alpha, beta){
+simulate_WSLS<-function ( df, alpha, beta){
   #----------------------------------------------------------------------------#
-  # Simulate RW without action. This function takes the reward and applies
-  # Rescorla-Wagner model to create expected values on each trial and prediction
-  # Error
-  #     INPUTS: df - a dataframe with the structure of the env
-  #     OUTPUTS: a dataframe with choice probabilities and rewards
+  # This function computes choices
+  #  conditional on a win stay lose shift model
+  #
+  # Input
+  #   df: data containing the structure of the task
+  #   beta : beta parameter
+  # UTPUTS: a dataframe with choice, choice probabilities and rewards
   #----------------------------------------------------------------------------#
+  
   
   # we have a red and a yellow slot
   slots<-c("red", "yellow")
@@ -22,12 +25,15 @@ simulate_RW_instr<-function( df, alpha, beta){
   # initialize the reward
   df$r<-NA
   
+  # Initialize prediction error
+  df$Delta<-NA
+  
   # create an empty rowa at the end
   df[nrow(df)+1, ]<-NA
   
-  # loop through the trials
-  for(t in 1:(nrow(df)-1)){
-    
+  # loop over trials
+  for (t in 1: nrow(df)){
+
     # get the expected values
     Q = df[t, c("Qred", "Qyellow")]
     
@@ -39,22 +45,27 @@ simulate_RW_instr<-function( df, alpha, beta){
     
     # convert it into a slot
     df$choice_slot[t]<-ifelse(choice==1, "red", "yellow")
-    
+  
     # generate the reward
     df$r[t]<-ifelse(df$choice_slot[t]==df$win[t], 1, 0)
     
-    # compute prediction error
-    df$Delta[t]<- as.numeric(df$r[t]-Q[choice])
-    
-    # Update the expected Values
-    Q[choice]<-Q[choice]+ alpha*df$Delta[t]
-    
+    # Updating rule
+    if (df$r[t]==1){
+      Q[choice]<-1
+      Q[choice]<-0
+      
+    } else{
+      Q[-choice]<-0
+      Q[-choice]<-1
+    }
+
     # assign the values to the dataframe
     df[t+1, c("Qred", "Qyellow")]<-Q
     df[t, c("pred", "pyellow")]<-cp
     
-    
   }
   
-  return(df)
-}
+  return(Data)
+  
+  }
+

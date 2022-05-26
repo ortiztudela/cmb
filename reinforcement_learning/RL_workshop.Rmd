@@ -19,7 +19,7 @@ output:
 call the packages and source the functions needed
 ```{r, warning=FALSE, results='hide', message=FALSE}
 library(ggplot2);theme_set(theme_classic())
-source("helper_functions/simulate_RW_pav.R")
+source("simulation_functions/simulate_RW_pav.R")
 
 ```
 
