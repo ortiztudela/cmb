@@ -29,7 +29,7 @@ simulate_RW_instr<-function( df, alpha, beta){
   for(t in 1:(nrow(df)-1)){
     
     # get the expected values
-    Q = df[t, c("Qred", "Qyellow")]
+    Q <-df[t, c("Qred", "Qyellow")]
     
     # choice probability through softmax
     cp<-softmax(Q , beta = beta)

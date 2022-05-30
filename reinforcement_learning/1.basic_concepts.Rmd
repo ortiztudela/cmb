@@ -47,10 +47,7 @@ ggplot(pav_sim, aes(x = t))+
 
 ```
 
-Repeat the simulation, but try to change the alpha
-```{r echo=TRUE}
 
-```
 
 Check how it changes depending on the alpha [here](https://francescopupillo.shinyapps.io/rmw_shiny/)
 
@@ -60,8 +57,9 @@ Now try a probabilistic reinforcement
 # sample R to be correct 75 % of the times
 set.seed(1236)
 p<- 0.75
+nTrials<-20
 
-r<-sample(c(1, 0), 20, prob = c(p, 1-p), replace = T)
+r<-sample(c(1, 0), nTrials, prob = c(p, 1-p), replace = T)
 mean(r)
 alpha<-0.3
 
@@ -84,7 +82,10 @@ ggplot(pav_sim2, aes(x = t))+
 
 ```
 
+Repeat the simulation, but try to change the alpha
+```{r echo=TRUE}
 
+```
 
 ## Instrumental Learning
 
@@ -147,7 +148,7 @@ source("helper_functions/softmax.R")
 soft_armed<-exp_armed
 
 # choose an inverse temperature parameter
-beta<-20
+beta<-10
 for ( n in 1:nrow(soft_armed) ){
   cp <-softmax(soft_armed[n, c("Qred", "Qyellow")], beta = beta)
   soft_armed[n, c("pRed", "pYellow")]<-cp
