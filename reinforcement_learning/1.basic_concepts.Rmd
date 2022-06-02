@@ -41,8 +41,8 @@ ggplot(pav_sim, aes(x = t))+
   geom_line(aes(y=Delta, color = "Delta"), size = 1.5)+
   xlab("trials")+
   ylab("")+
-    scale_color_manual(
-      name = "",
+  scale_color_manual(
+  name = "",
       values = c("V" = "blue", "Delta" = "red"))
 
 ```
@@ -209,7 +209,7 @@ p_red<-0.80 # probability of red slot to be the winner
 alpha<-0.20
 beta<-2
 
-# first create a
+# first create a data structure
 sim_instr<-data.frame("t" = 1:nTrials)
                     
 sim_instr$win <- sample(c("red", "yellow"), size = nTrials, prob = c(p_red, 1-p_red),
