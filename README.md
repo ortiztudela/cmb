@@ -5,5 +5,6 @@ After two decades of success of neuroimaging techniques, we are witnessing a gro
 
 https://wpd.ugr.es/~cgonzalez/cmb/
 
-This repo will have all the documentation and materials needed for the workshop.
+This repo will have all the documentation and materials needed for the workshop. In addition, below you will find a few key papers that can complement and extend the contents of the workshop:
 
+- Wilson, R. C., & Collins, A. G. E. (2019). Ten simple rules for the computational modeling of behavioral data. ELife, 8, 1–33. https://doi.org/10.7554/eLife.49547
