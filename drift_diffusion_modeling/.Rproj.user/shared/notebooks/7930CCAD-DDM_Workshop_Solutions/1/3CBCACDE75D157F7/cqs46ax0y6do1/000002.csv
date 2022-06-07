@@ -1,0 +1,47 @@
+"0","// [[Rcpp::depends(RcppZiggurat)]]
+#include <Rcpp.h>
+#include <Ziggurat.h>
+using namespace Rcpp;
+static Ziggurat::Ziggurat::Ziggurat zigg;
+
+// Rcpp function to simulate predictions from the seven parameter drift diffusion model (v, a, ter, zr, sv, st, sz)
+// [[Rcpp::export]]
+DataFrame DDM(double v=2, double a=1, double z=0, double ter=0.3, 
+                  double sv=0, double ster=0, double sz=0,
+                  double s=1, double dt=.001, double tmax=20, int ntrials=5000) {
+  
+  // Initialize variables
+  int tmax_step = tmax/dt;
+  NumericVector rts(ntrials);
+  NumericVector resps(ntrials);
+  
+  // Trial loop
+  for (int i = 0; i < ntrials; i++) {
+    
+    double tstep = 0;
+    double resp = R_NaN;
+    double v_i = v + zigg.norm()*sv;
+    double ter_i = ter + R::runif(-ster/2, ster/2);
+    double evidence = z + R::runif(-sz/2, sz/2);
+    
+    // Evidence accumulation loop
+    while (tstep < tmax_step){
+      evidence = evidence + v_i*dt + s*sqrt(dt)*zigg.norm();
+      if (evidence >= a){
+        resp = 1;
+        break;
+      } else if (evidence <= -a) {
+        resp = 0;
+        break;
+      }
+      tstep = tstep + 1;
+    }
+    rts(i) = (tstep*dt + ter_i);
+    resps(i) = resp;
+  }
+  DataFrame df = DataFrame::create( Named(""rt"") = rts, 
+                                    Named(""resp"") = resps);
+  return(df);
+}"
+"2","ld: warning: dylib (/Library/Frameworks/R.framework/R) was built for newer macOS version (20.0) than being linked (12.0)
+"

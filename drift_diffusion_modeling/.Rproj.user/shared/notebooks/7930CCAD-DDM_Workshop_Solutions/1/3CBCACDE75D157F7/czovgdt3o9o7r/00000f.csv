@@ -1,0 +1,4 @@
+"0","# Parameters"
+"0","v <- 3 # the systematic component in the noise, i.e., the drift rate"
+"0","a <- 1 # height of the upper boundary, -a will be the height of the lower boundary"
+"0","z <- 0 # the starting point, which we set to be exactly in the middle of the two boundaries"

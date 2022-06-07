@@ -1,0 +1,3 @@
+"0","plot(recovery_df$true_ter,recovery_df$recovered_ter, "
+"0","     main = paste0(""Non-Decision Time: R = "", main = as.character(round(cor(recovery_df$true_ter,recovery_df$recovered_ter),3))),"
+"0","     xlab = ""True Ter"", ylab = ""Recovered Ter"")"

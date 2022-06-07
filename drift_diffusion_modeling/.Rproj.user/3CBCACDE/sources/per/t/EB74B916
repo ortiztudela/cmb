@@ -1,0 +1,30 @@
+{
+    "id": "EB74B916",
+    "path": "~/Documents/GitHub/cmb/drift_diffusion_modeling/DDM_Workshop_Solutions.Rmd",
+    "project_path": "DDM_Workshop_Solutions.Rmd",
+    "type": "r_markdown",
+    "hash": "243143148",
+    "contents": "",
+    "dirty": false,
+    "created": 1654151854019.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "chunk_output_type": "inline",
+        "source_window_id": "",
+        "Source": "Source",
+        "docOutlineVisible": "1",
+        "rmdVisualModeLocation": "2:0",
+        "cursorPosition": "860,37",
+        "scrollLine": "769",
+        "rmdVisualCollapsedChunks": ""
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1653995415,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1654167795015,
+    "read_only": false,
+    "read_only_alternatives": []
+}

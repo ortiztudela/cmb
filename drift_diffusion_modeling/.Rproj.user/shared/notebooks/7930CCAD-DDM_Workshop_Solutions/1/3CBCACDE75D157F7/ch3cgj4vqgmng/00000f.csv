@@ -1,0 +1,5 @@
+"0","fptd_data <- simulate_DDM(v = .5, ntrials = 2000)"
+"0","fptd_data$resp <- ifelse(fptd_data$resp == 0, -1, fptd_data$resp)"
+"0","fptd_data <- na.omit(fptd_data)"
+"0","fptd_data$rt <- fptd_data$rt * fptd_data$resp"
+"0","hist(fptd_data$rt, freq = FALSE, breaks = 100, main = """", col = alpha(""red"", 0.4), border = ""black"", xlab = ""RT (s)"")"

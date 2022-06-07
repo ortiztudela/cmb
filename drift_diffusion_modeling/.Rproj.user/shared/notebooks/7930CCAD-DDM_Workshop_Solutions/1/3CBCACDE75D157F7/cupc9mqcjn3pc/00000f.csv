@@ -1,0 +1,6 @@
+"0","example_data %>% "
+"0","  filter(rt < 3) %>% "
+"0","  mutate(accuracy = ifelse(resp == 1, 1, -1)) %>% "
+"0","  mutate(rt = rt*accuracy) %>% "
+"0","  ggplot(aes(x=rt, color = instruction)) +"
+"0","  geom_density()"

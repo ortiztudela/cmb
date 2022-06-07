@@ -1,0 +1,4 @@
+"0","par(mfrow=c(1,3))"
+"0","plot(recovery_df$true_v,recovery_df$recovered_v, "
+"0","     main = paste0(""Drift Rate: R = "", main = as.character(round(cor(recovery_df$true_v,recovery_df$recovered_v),3))),"
+"0","     xlab = ""True V"", ylab = ""Recovered V"")"

@@ -1,0 +1,6 @@
+"0","library(tidyverse) # a unified collection of R packages designed for data science (including ggplot, dplyr...)"
+"0","library(rtdists) # a package that has the density functions for the DDM (necessary for maximum likelihood estimation)"
+"0","library(Rcpp) # to write C++ function and interface them from within R"
+"0","library(RcppZiggurat) # for fast random number generation within C++"
+"0","library(DEoptim) # differential evolution optimization algorithm"
+"0","theme_set(theme_classic()) # set the default ggplot theme"

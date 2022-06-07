@@ -1,0 +1,6 @@
+"0","example_data <- rr98 %>% "
+"0","  filter(outlier == FALSE) %>% "
+"0","  filter(rt < 3) %>% "
+"0","  mutate(resp = ifelse(correct == TRUE, 1, 0)) %>%"
+"0","  select(-c(session,block,trial,strength,outlier,source,response,response_num,correct)) %>%"
+"0","  print"
